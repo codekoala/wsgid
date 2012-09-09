@@ -70,49 +70,31 @@ def _create_core_options():
     '''
     Create the list of main CLI options
     '''
-    return [
-    add_option('app-path', help="Path to the WSGI application",\
-        dest="app_path"),
-
-    add_option('wsgi-app', help="Full qualified name for the WSGI application object",\
-        dest="wsgi_app"),
-
-    add_option('loader-dir', help="Aditional dir for custom Application Loaders",\
-        dest="loader_dir"),
-
-    add_option('debug', help="Runs wsgid in debug mode. Lots of logging.",\
-        dest="debug", type=BOOL),
-
-    add_option('stdout', help="Redirect all logs to stdout. Use this with --no-daemon to see the logs on the same terminal wsgid was started",\
-        dest="stdout", type=BOOL),
-
-    add_option('no-daemon', help="Runs wsgid in the foreground, printing all logs to stderr",\
-        type=BOOL, dest="no_daemon"),
-
-    add_option('workers', help="Starts a fixed number of wsgid processes. Defaults to 1",\
-        type=INT, dest="workers", default_value=1),
-
-    add_option('keep-alive', help="Automatically respawn any dead worker. Killink the master process kills any pending worker",\
-        type=BOOL, dest="keep_alive", default_value=True),
-
-    add_option('chroot', help="Chroot to the value of --app-path, before loading the app.",\
-        type=BOOL, dest="chroot"),
-
-    add_option('django', help="Force the app to be loaded as a django app",\
-        type=BOOL, dest="django"),
-
-    add_option('recv', \
-        help="TCP socket used to receive data from mongrel2. Format is IP:Port or *:Port to listen on any local IP",\
-      dest="recv"),
-
-    add_option(name='send', \
-        help="TCP socket used to return data to mongrel2. Format is IP:Port",\
-        dest="send"),
-
-    add_option(name='mongrel2-chroot', \
-        help="This the chroot of your mongrel2 server. This value will be prepended to the temporary file create by\
-                mongrel2 when receiving big requests. This is needed to the async upload work correctly.",\
-        dest="mongrel2_chroot")]
+    return [add_option('app-path', help="Path to the WSGI application", dest="app_path"),
+            add_option('wsgi-app', help="Full qualified name for the WSGI application object", dest="wsgi_app"),
+            add_option('loader-dir', help="Aditional dir for custom Application Loaders", dest="loader_dir"),
+            add_option('debug', help="Runs wsgid in debug mode. Lots of logging.", dest="debug", type=BOOL),
+            add_option('stdout', help="Redirect all logs to stdout. Use this with --no-daemon to see the logs on the same terminal wsgid was started",
+                       dest="stdout", type=BOOL),
+            add_option('no-daemon', help="Runs wsgid in the foreground, printing all logs to stderr",
+                       type=BOOL, dest="no_daemon"),
+            add_option('workers', help="Starts a fixed number of wsgid processes. Defaults to 1",
+                       type=INT, dest="workers", default_value=1),
+            add_option('keep-alive', help="Automatically respawn any dead worker. Killink the master process kills any pending worker",
+                       type=BOOL, dest="keep_alive", default_value=True),
+            add_option('chroot', help="Chroot to the value of --app-path, before loading the app.",
+                       type=BOOL, dest="chroot"),
+            add_option('django', help="Force the app to be loaded as a django app",
+                       type=BOOL, dest="django"),
+            add_option('recv', help="TCP socket used to receive data from mongrel2. Format is IP:Port or *:Port to listen on any local IP",
+                       dest="recv"),
+            add_option(name='send',
+                       help="TCP socket used to return data to mongrel2. Format is IP:Port",
+                       dest="send"),
+            add_option(name='mongrel2-chroot',
+                       help="This the chroot of your mongrel2 server. This value will be prepended to the temporary file create by \
+                        mongrel2 when receiving big requests. This is needed to the async upload work correctly.",
+                       dest="mongrel2_chroot")]
 
 
 def parse_options(use_config=True):

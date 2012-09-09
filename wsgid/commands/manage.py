@@ -28,9 +28,10 @@ class CommandManage(Plugin):
             method(options)
 
     def extra_options(self):
-        return [CommandLineOption(name='send-signal', \
-                                help='Choose a custom signal to send to master/workers processes. Default signal is SIGTERM.',\
-                                type=INT, default_value=signal.SIGTERM)]
+        return [CommandLineOption(name='send-signal',
+                                  help='Choose a custom signal to send to master/workers processes. Default signal is SIGTERM.',
+                                  type=INT,
+                                  default_value=signal.SIGTERM)]
 
     def _stop(self, options):
         wsgidapp = WsgidApp(options.app_path)

@@ -11,227 +11,227 @@ import parser
 
 import plugnplay
 import daemon
-import signal
 
 
 class Cli(object):
-  '''
-   Command Line interface for wsgid
-  '''
-  # PID types we may create
-  MASTER, WORKER = range(2)
+    '''
+    Command Line interface for wsgid
+    '''
 
-  def __init__(self):
-    self.log = log
+    # PID types we may create
+    MASTER, WORKER = range(2)
 
-  def run(self):
-    if run_command():
-      sys.exit(0)
+    def __init__(self):
+        self.log = log
 
-    options = parser.parse_options()
-    validate_input_params(app_path=options.app_path,\
-        recv=options.recv, send=options.send)
+    def run(self):
+        if run_command():
+            sys.exit(0)
 
-    self.options = options  # Will be used by the signal handlers
-    try:
-      daemon_options = self._create_daemon_options(options)
-      ctx = daemon.DaemonContext(**daemon_options)
+        options = parser.parse_options()
+        validate_input_params(app_path=options.app_path,
+                              recv=options.recv, send=options.send)
 
-      with ctx:
-        # Now that we are chrooted (if desired) we should correct
-        # the paths
-        options.app_path = self._normalize_path(options)
-        self._set_loggers(options)
+        self.options = options  # Will be used by the signal handlers
+        try:
+            daemon_options = self._create_daemon_options(options)
+            ctx = daemon.DaemonContext(**daemon_options)
 
-        wsgidapp = WsgidApp(options.app_path)
-        self.log.debug("Loading plugins from {pluginsdir}".format(pluginsdir=wsgidapp.pluginsdir))
-        plugnplay.set_plugin_dirs(wsgidapp.pluginsdir)
-        plugnplay.load_plugins(logger = self.log)
+            with ctx:
+                # Now that we are chrooted (if desired) we should correct
+                # the paths
+                options.app_path = self._normalize_path(options)
+                self._set_loggers(options)
 
-        self.log.debug("Using configs values {cfg}".format(cfg=options))
-        self.log.debug("Dropping privileges to: uid={uid}, gid={gid}".format(uid=daemon_options['uid'], gid=daemon_options['gid']))
-        self.log.info("Master process started")
-        self.log.debug("Creating master pid file at {0}".format(self._return_pid_file_path(os.getpid(), self.MASTER)))
-        self._write_pid(os.getpid(), self.MASTER)
-        self._load_plugins(options)
+                wsgidapp = WsgidApp(options.app_path)
+                self.log.debug("Loading plugins from {pluginsdir}".format(pluginsdir=wsgidapp.pluginsdir))
+                plugnplay.set_plugin_dirs(wsgidapp.pluginsdir)
+                plugnplay.load_plugins(logger=self.log)
 
-        self.workers = []
-        for worker in range(options.workers):
-          pid = self._create_worker(options)
-          self.workers.append(pid)
-        #Now we can register the master process SIGTERM handler
-        signal.signal(signal.SIGTERM, self._sigterm_handler)
-        self._wait_workers()
-    except Exception, e:
-      import traceback
-      exc = sys.exc_info()
-      self.log.info("".join(traceback.format_exception(exc[0], exc[1], exc[2])))
-      self._remove_pid(os.getpid(), self.MASTER)
-      sys.exit(1)
+                self.log.debug("Using configs values {cfg}".format(cfg=options))
+                self.log.debug("Dropping privileges to: uid={uid}, gid={gid}".format(uid=daemon_options['uid'], gid=daemon_options['gid']))
+                self.log.info("Master process started")
+                self.log.debug("Creating master pid file at {0}".format(self._return_pid_file_path(os.getpid(), self.MASTER)))
+                self._write_pid(os.getpid(), self.MASTER)
+                self._load_plugins(options)
 
-  def _write_pid(self, pid, pid_type):
-    # Create the base pid folder
-    self._mkdir_if_not_exist(os.path.join(self.options.app_path, 'pid'))
+                self.workers = []
+                for worker in range(options.workers):
+                    pid = self._create_worker(options)
+                    self.workers.append(pid)
+                #Now we can register the master process SIGTERM handler
+                signal.signal(signal.SIGTERM, self._sigterm_handler)
+                self._wait_workers()
+        except Exception:
+            import traceback
+            exc = sys.exc_info()
+            self.log.info("".join(traceback.format_exception(exc[0], exc[1], exc[2])))
+            self._remove_pid(os.getpid(), self.MASTER)
+            sys.exit(1)
 
-    pid_folder = self._return_pid_folder(pid_type)
-    self._mkdir_if_not_exist(pid_folder)
+    def _write_pid(self, pid, pid_type):
+        # Create the base pid folder
+        self._mkdir_if_not_exist(os.path.join(self.options.app_path, 'pid'))
 
-    pid_file_path = self._return_pid_file_path(pid, pid_type)
-    pid_file = open(pid_file_path, 'w')
-    self.log.debug("Creating pid file at {0}".format(pid_file_path))
-    pid_file.write(str(pid))
-    pid_file.close()
+        pid_folder = self._return_pid_folder(pid_type)
+        self._mkdir_if_not_exist(pid_folder)
 
-  def _return_pid_file_path(self, pid, pid_type):
-    return os.path.join(self._return_pid_folder(pid_type), '{0}.pid'.format(pid))
+        pid_file_path = self._return_pid_file_path(pid, pid_type)
+        pid_file = open(pid_file_path, 'w')
+        self.log.debug("Creating pid file at {0}".format(pid_file_path))
+        pid_file.write(str(pid))
+        pid_file.close()
 
-  def _remove_pid(self, pid, pid_type):
-    pid_file = self._return_pid_file_path(pid, pid_type)
-    self.log.debug("Removing pid file at {0}".format(pid_file))
-    if os.path.isfile(pid_file):
-      os.unlink(pid_file)
+    def _return_pid_file_path(self, pid, pid_type):
+        return os.path.join(self._return_pid_folder(pid_type), '{0}.pid'.format(pid))
 
-  def _return_pid_folder(self, pid_type):
+    def _remove_pid(self, pid, pid_type):
+        pid_file = self._return_pid_file_path(pid, pid_type)
+        self.log.debug("Removing pid file at {0}".format(pid_file))
+        if os.path.isfile(pid_file):
+            os.unlink(pid_file)
 
-    pid_folders = {
-        self.MASTER: os.path.join(self.options.app_path, 'pid/master'),
-        self.WORKER: os.path.join(self.options.app_path, 'pid/worker')
+    def _return_pid_folder(self, pid_type):
+
+        pid_folders = {
+            self.MASTER: os.path.join(self.options.app_path, 'pid/master'),
+            self.WORKER: os.path.join(self.options.app_path, 'pid/worker')
         }
-    return pid_folders[pid_type]
+        return pid_folders[pid_type]
 
-  def _mkdir_if_not_exist(self, path):
-    if not os.path.exists(path):
-      os.mkdir(path, 0700)
+    def _mkdir_if_not_exist(self, path):
+        if not os.path.exists(path):
+            os.mkdir(path, 0700)
 
-  '''
-    This is the SIGTERM handler of the master process.
-    This method kills any worker left when master process is killed
-  '''
-  def _sigterm_handler(self, sig, stack):
-    self.log.debug("SIGTERM received, killing any pending worker")
-    for p in self.workers:
-      self.log.debug("Killing worker pid={pid}".format(pid=p))
-      os.kill(p, signal.SIGTERM)
-      self._remove_pid(p, self.WORKER)
-    self.log.info("Exiting...")
-    self._remove_pid(os.getpid(), self.MASTER)
-    sys.exit(0)
-
-  def _wait_workers(self):
-    while True:
-      try:
-        dead_worker = os.wait()
-        self.workers.remove(dead_worker[0])
-        self.log.info("Worker finished, pid={pid} retval={retval}".format(pid=dead_worker[0], retval=dead_worker[1]))
-        self._remove_pid(dead_worker[0], self.WORKER)
-
-        if self.options.keep_alive:
-          new_worker = self._create_worker(self.options)
-          self.workers.append(new_worker)
-          self.log.debug("Current active workers={workers}".format(workers=self.workers))
-        if not self.workers:
-          self.log.debug("No more workers to wait for and no keep alive requested, exiting...")
-          self._remove_pid(os.getpid(), self.MASTER)
-          sys.exit(0)
-      except KeyboardInterrupt, k:
-        for worker in self.workers:
-          self._remove_pid(worker, self.WORKER)
+    def _sigterm_handler(self, sig, stack):
+        '''
+          This is the SIGTERM handler of the master process.
+          This method kills any worker left when master process is killed
+        '''
+        self.log.debug("SIGTERM received, killing any pending worker")
+        for p in self.workers:
+            self.log.debug("Killing worker pid={pid}".format(pid=p))
+            os.kill(p, signal.SIGTERM)
+            self._remove_pid(p, self.WORKER)
+        self.log.info("Exiting...")
         self._remove_pid(os.getpid(), self.MASTER)
-        return
+        sys.exit(0)
 
-  def _load_plugins(self, options):
-    if options.loader_dir:
-      plugnplay.set_plugin_dirs(*options.loader_dir)
-      plugnplay.load_plugins()
+    def _wait_workers(self):
+        while True:
+            try:
+                dead_worker = os.wait()
+                self.workers.remove(dead_worker[0])
+                self.log.info("Worker finished, pid={pid} retval={retval}".format(pid=dead_worker[0], retval=dead_worker[1]))
+                self._remove_pid(dead_worker[0], self.WORKER)
 
-  def _create_daemon_options(self, options):
-    daemon = {'detach_process': not options.no_daemon}
-    daemon.update({'stdin': sys.stdin,
-                   'stdout': sys.stdout,
-                   'stderr': sys.stderr})
-    if options.no_daemon:
-      # If we are not a daemon we must maintain the basic signal handlers
-      daemon.update({'signal_map': {
-          signal.SIGTTIN: signal.getsignal(signal.SIGTTIN),
-          signal.SIGTTOU: signal.getsignal(signal.SIGTTOU),
-          signal.SIGTSTP: signal.getsignal(signal.SIGTSTP),
-          signal.SIGTERM: signal.getsignal(signal.SIGTERM)
-        }})
-    else:
-      daemon.update({'signal_map':
-                      {signal.SIGTERM: signal.getsignal(signal.SIGTERM)}
-        })
+                if self.options.keep_alive:
+                    new_worker = self._create_worker(self.options)
+                    self.workers.append(new_worker)
+                    self.log.debug("Current active workers={workers}".format(workers=self.workers))
+                if not self.workers:
+                    self.log.debug("No more workers to wait for and no keep alive requested, exiting...")
+                    self._remove_pid(os.getpid(), self.MASTER)
+                    sys.exit(0)
+            except KeyboardInterrupt:
+                for worker in self.workers:
+                    self._remove_pid(worker, self.WORKER)
+                self._remove_pid(os.getpid(), self.MASTER)
+                return
 
-    daemon.update({'uid': os.getuid(), 'gid': os.getgid()})
+    def _load_plugins(self, options):
+        if options.loader_dir:
+            plugnplay.set_plugin_dirs(*options.loader_dir)
+            plugnplay.load_plugins()
 
-    if options.app_path:
-      full_path = options.app_path
-      stat = os.stat(full_path)
-      daemon.update({'uid': stat.st_uid,
-                     'gid': stat.st_gid})
+    def _create_daemon_options(self, options):
+        daemon = {'detach_process': not options.no_daemon}
+        daemon.update({'stdin': sys.stdin,
+                       'stdout': sys.stdout,
+                       'stderr': sys.stderr})
+        if options.no_daemon:
+            # If we are not a daemon we must maintain the basic signal handlers
+            daemon.update({'signal_map': {
+                signal.SIGTTIN: signal.getsignal(signal.SIGTTIN),
+                signal.SIGTTOU: signal.getsignal(signal.SIGTTOU),
+                signal.SIGTSTP: signal.getsignal(signal.SIGTSTP),
+                signal.SIGTERM: signal.getsignal(signal.SIGTERM)
+            }})
+        else:
+            daemon.update({'signal_map':
+                          {signal.SIGTERM: signal.getsignal(signal.SIGTERM)}
+                          })
 
-      if options.chroot:
-        full_path = options.app_path
-        stat = os.stat(full_path)
-        daemon.update({'chroot_directory': full_path,
-                       'uid': stat.st_uid,
-                       'gid': stat.st_gid})
-    return daemon
+        daemon.update({'uid': os.getuid(), 'gid': os.getgid()})
 
-  def _normalize_path(self, options):
-    if options.chroot:
-      return '/'
-    return options.app_path
+        if options.app_path:
+            full_path = options.app_path
+            stat = os.stat(full_path)
+            daemon.update({'uid': stat.st_uid,
+                           'gid': stat.st_gid})
 
-  '''
-   Forks a new wsgid worker, return the pid of this worker
-  '''
-  def _create_worker(self, options):
-    pid = os.fork()
-    if pid == 0:
-      self.workers = []
-      self.log = logging.getLogger('wsgid')
-      signal.signal(signal.SIGTERM, signal.SIG_DFL)
-      self._call_wsgid(options)
+        if options.chroot:
+            full_path = options.app_path
+            stat = os.stat(full_path)
+            daemon.update({'chroot_directory': full_path,
+                           'uid': stat.st_uid,
+                           'gid': stat.st_gid})
+        return daemon
 
-    self.log.info("New wsgid worker created pid={pid}".format(pid=pid))
-    self._write_pid(pid, self.WORKER)
-    return pid
+    def _normalize_path(self, options):
+        if options.chroot:
+            return '/'
+        return options.app_path
 
-  def _call_wsgid(self, options):
-    from wsgid.core import Wsgid
-    from ..loaders import load_app
+    def _create_worker(self, options):
+        '''
+        Forks a new wsgid worker, return the pid of this worker
+        '''
+        pid = os.fork()
+        if pid == 0:
+            self.workers = []
+            self.log = logging.getLogger('wsgid')
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            self._call_wsgid(options)
 
-    # Create the env vars
-    if options.envs:
-      for k, v in options.envs.iteritems():
-        os.environ[k] = v
+        self.log.info("New wsgid worker created pid={pid}".format(pid=pid))
+        self._write_pid(pid, self.WORKER)
+        return pid
 
-    # The app source-code is inside an "app" folder, so we join this part
-    # here and pass it to the AppLoaders.
-    wsgi_app = load_app(os.path.join(options.app_path, 'app'), options.wsgi_app)
-    wsgid = Wsgid(wsgi_app, options.recv, options.send)
-    wsgid.serve()
+    def _call_wsgid(self, options):
+        from wsgid.core import Wsgid
+        from ..loaders import load_app
 
-  def _set_loggers(self, options):
-    level = logging.INFO if not options.debug else logging.DEBUG
-    logger = log
-    logger.setLevel(level)
+        # Create the env vars
+        if options.envs:
+            for k, v in options.envs.iteritems():
+                os.environ[k] = v
 
-    if options.chroot:
-      log_path = os.path.join('/', 'logs/wsgid.log')
+        # The app source-code is inside an "app" folder, so we join this part
+        # here and pass it to the AppLoaders.
+        wsgi_app = load_app(os.path.join(options.app_path, 'app'), options.wsgi_app)
+        wsgid = Wsgid(wsgi_app, options.recv, options.send)
+        wsgid.serve()
 
-    if options.no_daemon and options.stdout:
-      console = logging.StreamHandler()
-    else:
-      log_path = os.path.join(options.app_path or '/tmp', 'logs/wsgid.log')
-      console = logging.FileHandler(log_path)
+    def _set_loggers(self, options):
+        level = logging.INFO if not options.debug else logging.DEBUG
+        logger = log
+        logger.setLevel(level)
 
-    console.setLevel(level)
+        if options.chroot:
+            log_path = os.path.join('/', 'logs/wsgid.log')
 
-    formatter = logging.Formatter("%(asctime)s - %(name)s [pid=%(process)d] - %(levelname)s - %(message)s")
-    console.setFormatter(formatter)
+        if options.no_daemon and options.stdout:
+            console = logging.StreamHandler()
+        else:
+            log_path = os.path.join(options.app_path or '/tmp', 'logs/wsgid.log')
+            console = logging.FileHandler(log_path)
 
-    logger.addHandler(console)
-    self.log = logger
-    wsgid.core.log = logger
+        console.setLevel(level)
+
+        formatter = logging.Formatter("%(asctime)s - %(name)s [pid=%(process)d] - %(levelname)s - %(message)s")
+        console.setFormatter(formatter)
+
+        logger.addHandler(console)
+        self.log = logger
+        wsgid.core.log = logger

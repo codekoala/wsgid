@@ -346,11 +346,11 @@ class WsgidApp(object):
 
     def is_valid(self):
         return os.path.exists(os.path.join(self.fullpath, 'app')) \
-                and os.path.exists(os.path.join(self.fullpath, 'logs')) \
-                and os.path.exists(os.path.join(self.fullpath, 'plugins')) \
-                and os.path.exists(os.path.join(self.fullpath, 'pid')) \
-                and os.path.exists(os.path.join(self.fullpath, 'pid/master')) \
-                and os.path.exists(os.path.join(self.fullpath, 'pid/worker'))
+            and os.path.exists(os.path.join(self.fullpath, 'logs')) \
+            and os.path.exists(os.path.join(self.fullpath, 'plugins')) \
+            and os.path.exists(os.path.join(self.fullpath, 'pid')) \
+            and os.path.exists(os.path.join(self.fullpath, 'pid/master')) \
+            and os.path.exists(os.path.join(self.fullpath, 'pid/worker'))
 
     def master_pids(self):
         return sorted(self._get_pids(self.fullpath, 'pid/master/'))

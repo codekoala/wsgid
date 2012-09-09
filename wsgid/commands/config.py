@@ -48,8 +48,8 @@ class CommandConfig(Plugin):
         f.close()
 
     def extra_options(self):
-        return [CommandLineOption(name='no-debug', help='Turns off debug option', type=BOOL, default_value=None), \
-                CommandLineOption(name='no-keep-alive', help='Turns off Keep alive option', type=BOOL), \
+        return [CommandLineOption(name='no-debug', help='Turns off debug option', type=BOOL, default_value=None),
+                CommandLineOption(name='no-keep-alive', help='Turns off Keep alive option', type=BOOL),
                 CommandLineOption(name='no-chroot', help='Turns off Chroot option', type=BOOL)]
 
     def _open_config_file(self, path):
