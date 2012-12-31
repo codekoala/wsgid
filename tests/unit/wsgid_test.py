@@ -38,6 +38,8 @@ class WsgidTest(unittest.TestCase):
     self.sample_headers = {}
     conf.settings = None
 
+
+
   '''
    Creates the SCRIPT_NAME header from the mongrel2 PATTERN header.
    SCRIPT_NAME should be the PATTERN without any regex parts.
@@ -179,7 +181,7 @@ class WsgidTest(unittest.TestCase):
     self.assertEquals('localhost', environ['HTTP_HOST'])
 
   '''
-   All headers (but HTTP common headers and X- headers) must be HTTP_ suffixed
+   All headers (but HTTP common headers and X- headers) must be HTTP_ prefixed
   '''
   def test_environ_other_headers(self):
     self.sample_headers['my_header'] = 'some-value'
@@ -248,8 +250,19 @@ class WsgidTest(unittest.TestCase):
     self.assertEquals(True, environ['wsgi.multiprocess'])
     self.assertEquals(True, environ['wsgi.run_once'])
     self.assertEquals((1,0), environ['wsgi.version'])
+    # url_scheme defaults to http
     self.assertEquals("http", environ['wsgi.url_scheme'])
     self.assertEquals(sys.stderr, environ['wsgi.errors'])
+
+  def test_url_scheme_http(self):
+    self.sample_headers['URL_SCHEME'] = 'http'
+    environ = self.wsgid._create_wsgi_environ(self.sample_headers)
+    self.assertEquals('http', environ['wsgi.url_scheme'])
+
+  def test_url_scheme_https(self):
+    self.sample_headers['URL_SCHEME'] = 'https'
+    environ = self.wsgid._create_wsgi_environ(self.sample_headers)
+    self.assertEquals('https', environ['wsgi.url_scheme'])
 
   def test_join_m2_chroot_to_async_upload_path(self):
       # The value in x-mongrel2-upload-{start,done} should be prepended with the
