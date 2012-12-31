@@ -284,7 +284,7 @@ class Wsgid(object):
         environ['wsgi.run_once'] = True
         environ['wsgi.errors'] = sys.stderr
         environ['wsgi.version'] = (1, 0)
-        self._set(environ, 'wsgi.url_scheme', "http")
+        self._set(environ, 'wsgi.url_scheme', json_headers.get('URL_SCHEME', "http"))
 
         if body:
             environ['wsgi.input'] = StringIO(body)
