@@ -2,6 +2,12 @@ Changelog
 =========
 
 
+Version -next
+*************
+
+ * Adds support for mongrel2 URL_SCHEME headers, now wsgi.url_scheme is correctly filled. Depends on mongrel2 greater than 1.8.0
+
+
 Version 0.7.0
 *************
 
