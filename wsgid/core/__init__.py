@@ -97,9 +97,11 @@ class StartResponse(object):
 
 
         if self.should_close:
-            self.chunked = False 
-            self._reply_internal("")
+            self.close()
 
+    def close(self):
+        self.chunked = False 
+        self._reply_internal("")
 
     def write(self, body):
         if not self.headers_sent:
@@ -156,6 +158,11 @@ class StartResponse(object):
             return self.server._reply(self.message, self.status, self.headers, body)
         return self.server._reply(self.message, None, None, body)
 
+    def error(self, status):
+        if not self.headers_sent:
+            self(status,[],True)
+            self.write("")
+        self.close()
 
     '''
      Run post request filters
@@ -323,7 +330,7 @@ class Wsgid(object):
         except Exception, e:
             # Internal Server Error
             self._run_simple_filters(IPostRequestFilter.implementors(), self._filter_exception_callback, m2message, e)
-            self._reply(m2message, '500 Internal Server Error', headers=[], body='')
+            start_response.error('500 Internal Server Error')
             self.log.exception(e)
         finally:
             if hasattr(response, 'close'):
