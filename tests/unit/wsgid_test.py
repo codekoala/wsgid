@@ -7,6 +7,7 @@ import unittest
 from wsgid.core import Wsgid, Plugin
 from wsgid.core.parser import parse_options
 from wsgid.interfaces.filters import IPreRequestFilter, IPostRequestFilter
+from wsgid.core.message import Message
 import wsgid.conf as conf
 from wsgid import __version__
 import sys
@@ -19,6 +20,7 @@ class WsgidTest(unittest.TestCase):
 
   def setUp(self):
     self.wsgid = Wsgid()
+    self.wsgid.send_sock = Mock()
     self.sample_headers = {
           'METHOD': 'GET',
           'VERSION': 'HTTP/1.1',
@@ -273,13 +275,13 @@ class WsgidTest(unittest.TestCase):
                 wsgid._create_wsgi_environ.return_value = {}
                 with patch("__builtin__.open") as mock_open:
                     with patch('os.unlink'):
-                        wsgid._call_wsgi_app(message, Mock())
+                        wsgid._call_wsgi_app(message)
                         self.assertEquals(1, mock_open.call_count)
                         mock_open.assert_called_with(expected_final_path)
 
           self._reparse_options('--mongrel2-chroot=/var/mongrel2')
           wsgid = Wsgid(app = Mock(return_value=['body response']))
-
+          wsgid.send_sock = Mock()
           message = self._create_fake_m2message('/uploads/m2.84Yet4')
           _serve_request(wsgid, message, '/var/mongrel2/uploads/m2.84Yet4')
           self._reparse_options()
@@ -295,10 +297,10 @@ class WsgidTest(unittest.TestCase):
                 with patch.object(wsgid, '_create_wsgi_environ'):
                     wsgid._create_wsgi_environ.return_value = {}
                     with patch("__builtin__.open"):
-                        wsgid._call_wsgi_app(message, Mock())
+                        wsgid._call_wsgi_app(message,)
 
             wsgid = Wsgid(app = Mock(return_value=['body response']))
-
+            wsgid.send_sock = Mock()
             message = self._create_fake_m2message('/uploads/m2.84Yet4')
             _serve_request(wsgid, message)
             mock_unlink.assert_called_with('/uploads/m2.84Yet4')
@@ -312,9 +314,10 @@ class WsgidTest(unittest.TestCase):
                 with patch.object(wsgid, '_create_wsgi_environ'):
                     wsgid._create_wsgi_environ.return_value = {}
                     with patch("__builtin__.open"):
-                        wsgid._call_wsgi_app(message, Mock())
+                        wsgid._call_wsgi_app(message)
 
             wsgid = Wsgid(app = Mock(side_effect = Exception("Failed")))
+            wsgid.send_sock = Mock()
             wsgid.log = Mock()
             message = self._create_fake_m2message('/uploads/m2.84Yet4')
             _serve_request(wsgid, message)
@@ -328,9 +331,10 @@ class WsgidTest(unittest.TestCase):
                 with patch.object(wsgid, '_create_wsgi_environ'):
                     wsgid._create_wsgi_environ.return_value = {}
                     with patch("__builtin__.open"):
-                        wsgid._call_wsgi_app(message, Mock())
+                        wsgid._call_wsgi_app(message)
 
             wsgid = Wsgid(app = Mock(return_value = ['body response']))
+            wsgid.send_sock = Mock()
             wsgid.log = Mock()
             message = self._create_fake_m2message('/uploads/m2.84Yet4')
             _serve_request(wsgid, message)
@@ -343,12 +347,13 @@ class WsgidTest(unittest.TestCase):
                 with patch.object(wsgid, '_create_wsgi_environ'):
                     wsgid._create_wsgi_environ.return_value = {}
                     with patch("__builtin__.open"):
-                        wsgid._call_wsgi_app(message, Mock())
+                        wsgid._call_wsgi_app(message)
 
             wsgid = Wsgid(app = Mock(return_value = ['body response']))
+            wsgid.send_sock = Mock()
             wsgid.log = Mock()
             message = Mock()
-            message.headers = [] #It's not an upload message
+            message.headers = {'VERSION':'HTTP/1.1'} #It's not an upload message
             message.client_id = 'uuid'
             message.server_id = '1'
             message.is_upload_done.return_value = False
@@ -363,7 +368,8 @@ class WsgidTest(unittest.TestCase):
   def _create_fake_m2message(self, async_upload_path):
         message = Mock()
         message.headers = {'x-mongrel2-upload-start': async_upload_path,
-                            'x-mongrel2-upload-done': async_upload_path}
+                            'x-mongrel2-upload-done': async_upload_path,
+                            'VERSION' : 'HTTP/1.0'}
         message.async_upload_path = async_upload_path
         message.server_id = 'uuid'
         message.client_id = '42'
@@ -371,67 +377,63 @@ class WsgidTest(unittest.TestCase):
 
 class WsgidReplyTest(unittest.TestCase):
 
-
   def setUp(self):
-    self.wsgid = Wsgid()
     self.sample_uuid = 'bb3ce668-4528-11e0-94e3-001fe149503a'
     self.sample_conn_id = '42'
+    self.message = Message('%s %s / 22:{"VERSION":"HTTP/1.0"},0:,' % (self.sample_uuid, self.sample_conn_id))
+    
 
-  def test_reply_no_headers(self):
-    m2msg = self.wsgid._reply(self.sample_uuid, self.sample_conn_id, '200 OK', body='Hello World\n')
-    resp = "%s 2:42, HTTP/1.1 200 OK\r\nContent-Length: 12\r\nX-Wsgid: %s\r\n\r\nHello World\n" % (self.sample_uuid, __version__)
-    self.assertEquals(resp, m2msg)
+  def test_reply(self):
+    wsgid = Wsgid()
+    socket = Mock()
+    socket.send.return_value = None
+    wsgid.send_sock = socket
 
-  def test_reply_no_body(self):
-    headers = [('Header', 'Value'), ('X-Other-Header', 'Other-Value')]
-    m2msg = self.wsgid._reply(self.sample_uuid, self.sample_conn_id, '200 OK', headers=headers)
-    resp = "%s 2:42, HTTP/1.1 200 OK\r\n\
-Header: Value\r\n\
-X-Other-Header: Other-Value\r\n\
-Content-Length: 0\r\n\
-X-Wsgid: %s\r\n\r\n" % (self.sample_uuid, __version__)
 
-    self.assertEquals(resp, m2msg)
-
-  def test_reply_with_body_andheaders(self):
     headers = [('Header', 'Value'), ('X-Other-Header', 'Other-Value')]
     body = "Hello World\n"
-    m2msg = self.wsgid._reply(self.sample_uuid, self.sample_conn_id, '200 OK', headers=headers, body=body)
+    wsgid._reply(self.message, '200 OK', headers=headers, body=body)
+    m2msg = socket.send.call_args[0][0]
     resp = "%s 2:42, HTTP/1.1 200 OK\r\n\
 Header: Value\r\n\
 X-Other-Header: Other-Value\r\n\
-Content-Length: 12\r\n\
-X-Wsgid: %s\r\n\r\n\
-Hello World\n" % (self.sample_uuid, __version__)
+\r\n\
+Hello World\n" % (self.sample_uuid, )
     self.assertEquals(resp, m2msg)
 
-  def test_add_x_wsgid_header(self):
-      headers = [('Header', 'Value'), ('X-Other-Header', 'Other-Value')]
-      body = "Hello World\n"
-      m2msg = self.wsgid._reply(self.sample_uuid, self.sample_conn_id, '200 OK', headers=headers, body=body)
-      resp = "%s 2:42, HTTP/1.1 200 OK\r\n\
-Header: Value\r\n\
-X-Other-Header: Other-Value\r\n\
-Content-Length: 12\r\n\
-X-Wsgid: %s\r\n\r\n\
-Hello World\n" % (self.sample_uuid, __version__)
-      assert resp == m2msg
+class WsgidContentLengthTest(unittest.TestCase):
+  def setUp(self):
+    self.sample_uuid = 'bb3ce668-4528-11e0-94e3-001fe149503a'
+    self.sample_conn_id = '42'
+    self.message = Message('%s %s / 22:{"VERSION":"HTTP/1.0"},0:,' % (self.sample_uuid, self.sample_conn_id))
+  def test_content_length(self):
+    def app(env, start):
+        start("200 OK", [])
+        return ["Hello"]
 
-  """
-  If the WSGI app returns a X-WSGID header we must replace it.
-  X-WSGID is a reserved header name
-  """
-  def test_remove_any_x_wsgid_header(self):
-      headers = [('Header', 'Value'), ('X-Other-Header', 'Other-Value'), ('X-WSGID', 'Not-Permitted')]
-      body = "Hello World\n"
-      m2msg = self.wsgid._reply(self.sample_uuid, self.sample_conn_id, '200 OK', headers=headers, body=body)
-      resp = "%s 2:42, HTTP/1.1 200 OK\r\n\
-Header: Value\r\n\
-X-Other-Header: Other-Value\r\n\
-Content-Length: 12\r\n\
-X-Wsgid: %s\r\n\r\n\
-Hello World\n" % (self.sample_uuid, __version__)
-      self.assertEquals(resp, m2msg)
+    wsgid = Wsgid(app)
+    socket = Mock()
+    socket.send.return_value = None
+    wsgid.send_sock = socket
+    with patch.object(wsgid, "_reply") as reply, \
+          patch.object(wsgid, "_create_wsgi_environ") :
+        wsgid._call_wsgi_app(self.message)
+        headers = reply.call_args_list[0][0][2]
+        self.assertEquals(headers, [('Content-Length', '5'), ('X-Wsgid', __version__),  ('Date', ANY) ])  
+  def test_no_cotent_length(self):
+    def app(env, start):
+        start("200 OK", [])
+        return ["Hello", "There"]
+    wsgid = Wsgid(app)
+    socket = Mock()
+    socket.send.return_value = None
+    wsgid.send_sock = socket
+    with patch.object(wsgid, "_reply") as reply, \
+          patch.object(wsgid, "_create_wsgi_environ") :
+        wsgid._call_wsgi_app(self.message)
+        headers = reply.call_args_list[0][0][2]
+ 
+        self.assertEquals(headers, [('X-Wsgid', __version__), ('Date', ANY)])  
 
 
 class AlmostAlwaysTrue(object):
@@ -452,7 +454,7 @@ class WsgidRequestFiltersTest(unittest.TestCase):
     def setUp(self):
         self.sample_headers = {
             'METHOD': 'GET',
-            'VERSION': 'HTTP/1.1',
+            'VERSION': 'HTTP/1.0', #prevent chunking
             'PATTERN': '/root',
             'URI': '/more/path/',
             'PATH': '/more/path',
@@ -467,7 +469,7 @@ class WsgidRequestFiltersTest(unittest.TestCase):
         self.raw_msg = "SID CID /path {len}:{h}:{lenb}:{b}".format(len=len(headers_str), h=headers_str, lenb=len(body), b=body)
         plugnplay.man.iface_implementors = {}
         conf.settings = namedtuple('object', 'mongrel2_chroot')
-        self.start_response_mock = namedtuple('object', ['body_written', 'status', 'headers'], verbose=False)
+        self.start_response_mock = namedtuple('object', ['headers_sent', 'status', 'headers'], verbose=False)
 
     '''
      This also tests if the modified environ is passed to the WSGI app
@@ -599,8 +601,8 @@ class WsgidRequestFiltersTest(unittest.TestCase):
         class PostRequestFilter(Plugin):
             implements = [IPostRequestFilter, ]
 
-            def process(self, message, status, headers, body):
-                return ('200 OK from filter', headers + [('X-Post-Header', 'Value')], body)
+            def process(self, message, status, headers, write, finish):
+                return ('200 OK from filter', headers + [('X-Post-Header', 'Value')], write, finish)
 
         sock_mock = Mock()
         sock_mock.recv.return_value = self.raw_msg
@@ -616,7 +618,10 @@ class WsgidRequestFiltersTest(unittest.TestCase):
             environ_mock.return_value = self.sample_headers.copy()
             wsgid.serve()
             assert 1 == app_mock.call_count
-            assert [call('SID', 'CID', '200 OK from filter', [('X-Post-Header', 'Value')], 'Line1Line2')] == reply_mock.call_args_list
+            headers =  [('X-Wsgid', '0.7.0'), ('Date',ANY), ('X-Post-Header', 'Value')]
+            self.assertEqual( [call(ANY, '200 OK from filter', headers, 'Line1'),
+                              call(ANY, None, None, 'Line2'), ANY], 
+                         reply_mock.call_args_list)
 
     def test_call_post_request_exception(self):
 
@@ -641,14 +646,18 @@ class WsgidRequestFiltersTest(unittest.TestCase):
         class APostRequestFilter(Plugin):
             implements = [IPostRequestFilter, ]
 
-            def process(self, message, status, headers, body):
-                return (status, headers, body + 'FA')
+            def process(self, message, status, headers, write, finish):
+                def new_finish():
+                    return finish() + 'FA'
+                return (status, headers, write, new_finish)
 
         class BPostRequestFilter(Plugin):
             implements = [IPostRequestFilter, ]
 
-            def process(self, message, status, headers, body):
-                return (status, headers, body + 'FB')
+            def process(self, message, status, headers, write, finish):
+                def new_finish():
+                    return finish()  + 'FB'
+                return (status, headers, write, new_finish)
 
 
         sock_mock = Mock()
@@ -665,22 +674,28 @@ class WsgidRequestFiltersTest(unittest.TestCase):
             environ_mock.return_value = self.sample_headers.copy()
             wsgid.serve()
             assert 1 == app_mock.call_count
-            assert [call('SID', 'CID', '', [], 'Line1Line2FAFB')] == reply_mock.call_args_list
+            self.assertEquals( [call(ANY, '', [('X-Wsgid', '0.7.0'), ('Date', ANY)], 'Line1'),
+                                call(ANY, None, None, 'Line2'),
+                                call(ANY, None, None, 'FAFB'), ANY], reply_mock.call_args_list)
 
     def test_ensure_a_broken_post_request_filter_does_not_crash_a_sucessful_request(self):
         class APostRequestFilter(Plugin):
             implements = [IPostRequestFilter, ]
 
-            def process(self, message, status, headers, body):
-                return (status, headers, body + 'FA')
+            def process(self, message, status, headers, write,finish):
+                def new_finish():
+                    return finish() + 'FA'
+                return (status, headers,write,new_finish)
 
         class BPostRequestFilter(Plugin):
             implements = [IPostRequestFilter, ]
 
-            def process(self, message, status, headers, body):
+            def process(self, message, status, headers, write,finish):
+                def new_finish():
+                    return finish()  + 'FB'
                 # Here we return a wrong tuple. wsgid must be able not to crash
                 # the request because of this
-                return (headers, body + 'FB')
+                return (headers,write,new_finish)
 
 
         sock_mock = Mock()
@@ -697,4 +712,6 @@ class WsgidRequestFiltersTest(unittest.TestCase):
             environ_mock.return_value = self.sample_headers.copy()
             wsgid.serve()
             assert 1 == app_mock.call_count
-            assert [call('SID', 'CID', '', [], 'Line1Line2FA')] == reply_mock.call_args_list
+            self.assertEqual( [call(ANY, '', [('X-Wsgid', '0.7.0'), ('Date', ANY)], 'Line1'),
+                               call(ANY, None, None, 'Line2'),
+                               call(ANY, None, None, 'FA'), ANY] , reply_mock.call_args_list)

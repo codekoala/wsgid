@@ -19,24 +19,42 @@ import zmq
 from glob import glob
 
 
+from wsgiref.handlers import format_date_time
+from datetime import datetime
+from time import mktime
+
 Plugin = plugnplay.Plugin
 log = logging.getLogger('wsgid')
 
 
 class StartResponse(object):
+    # __slots__
 
-    def __init__(self):
+    def __init__(self, message, server):
         self.headers = []
         self.status = ''
-        self.body = ''
         self.called = False
-        self.body_written = False
+        self.headers_sent = False
+        self.message = message
+        self.server = server
+        self.version = message.headers['VERSION'] #this may go away once the environ is built
+        self._filtered_finish = self._finish
+        self._filtered_write = self._reply
+        self.chunked = False
+        
+
+        if self.version == 'HTTP/1.1':
+            self.should_close = ( message.headers.get('connection','').lower() == 'close')
+        else:
+            self.should_close = (message.headers.get('connection','').lower() != 'keep-alive')
+        
+        server.log.debug("Should close: %s", self.should_close)
 
     def __call__(self, status, response_headers, exec_info=None):
         if self.called and not exec_info:
             raise StartResponseCalledTwice()
 
-        if exec_info and self.body_written:
+        if exec_info and self.headers_sent:
             try:
                 raise exec_info[0], exec_info[1], exec_info[2]
             finally:
@@ -46,12 +64,125 @@ class StartResponse(object):
         self.status = status
 
         self.called = True
-        return self._write
+        return self.write
 
-    def _write(self, body):
-        self.body_written = True
-        self.body += body
+    @property
+    def log(self):
+        global log
+        return log
 
+    @property
+    def has_content_length(self):
+        #content-length generally at the end, so search backwards
+        return 'content-length' in (header[0].lower() for header in reversed(self.headers))
+
+    @property
+    def supports_chunked(self):
+        if self.version == 'HTTP/1.1':
+            return True
+        if 'te' in self.message.headers:
+            te = self.message.headers['te']
+            return ('chunked' in (v.strip().lower() for v in te.split(',')))
+        return False
+
+    def finish(self):
+        if not self.headers_sent:
+            self._finalize_headers()
+        trailer = self._filtered_finish()
+        if trailer:
+            self._reply_internal(trailer)
+
+        if self.chunked or not self.headers_sent:    
+            self._reply_internal("")
+
+
+        if self.should_close:
+            self.close()
+
+    def close(self):
+        self.chunked = False 
+        self._reply_internal("")
+
+    def write(self, body):
+        if not self.headers_sent:
+            self._finalize_headers()
+        return self._filtered_write(body)
+
+    def _finalize_headers(self):
+        header_set = frozenset(header.lower() for (header,value) in self.headers)
+
+        if x_wsgid_header_name not in header_set:
+            self.headers.append((X_WSGID_HEADER_NAME, __version__))
+        if 'date' not in header_set:
+            self.headers.append(("Date", format_date_time(mktime(datetime.now().timetuple())) ))
+        if 'content-length' not in header_set:
+            if self.supports_chunked:
+                if 'transfer-encoding' not in header_set:
+                    self.chunked = True
+                    self.headers.append(("Transfer-Encoding", "chunked"))
+            else:
+                self.should_close = True
+
+        if 'connection' not in header_set:
+            if self.version == 'HTTP/1.1':
+                if self.should_close:
+                    self.headers.append(('Connection','close'))
+            else:
+                if not self.should_close:
+                    self.headers.append(('Connection','Keep-Alive'))
+        else:
+            #should set should_close to the value of 'connection' in headers            
+            pass
+
+
+        self._run_post_filters(IPostRequestFilter.implementors())
+
+    def _finish(self):
+        return ""
+
+    def _reply(self, body):
+        if body is None:
+            return None
+        else:
+            return self._reply_internal(body)
+
+    def _reply_internal(self, body):
+        '''
+        Constructs a mongrel2 response message
+        '''
+        if self.chunked:
+            body = "%s\r\n%s\r\n" % (hex(len(body))[2:], body)
+
+        if not self.headers_sent:
+            self.headers_sent = True
+            return self.server._reply(self.message, self.status, self.headers, body)
+        return self.server._reply(self.message, None, None, body)
+
+    def error(self, status):
+        if not self.headers_sent:
+            self(status,[],True)
+            self.write("")
+        self.close()
+
+    '''
+     Run post request filters
+     This method is separated because the post request filter should return a value that will
+     be passed to the next filter in the execution chain
+    '''
+    def _run_post_filters(self, filters):
+        self.log.debug("Calling PostRequest filters...")
+        status, headers, write, finish = self.status, self.headers, self._reply, self._finish
+        for f in filters:
+            try:
+                self.log.debug("Calling %s filter".format(f.__class__.__name__))
+                status, headers, write, finish = f.process(self.message, status, headers, write, finish)
+            except Exception as e:
+                from wsgid.core import log
+                log.exception(e)
+        self.status = status
+        self.headers = headers
+        self._filtered_write = write
+        self._filtered_finish = finish
 
 class StartResponseCalledTwice(Exception):
     pass
@@ -131,6 +262,7 @@ class Wsgid(object):
         '''
         self.log.debug("Setting up ZMQ endpoints")
         send_sock, recv_sock = self._setup_zmq_endpoints()
+        self.send_sock = send_sock
         self.log.info("All set, ready to serve requests...")
         while self._should_serve():
             self.log.debug("Serving requests...")
@@ -146,7 +278,7 @@ class Wsgid(object):
                 continue
 
             # Call the app and send the response back to mongrel2
-            self._call_wsgi_app(m2message, send_sock)
+            self._call_wsgi_app(m2message)
 
     '''
      This method exists just to me mocked in the tests.
@@ -155,7 +287,8 @@ class Wsgid(object):
     def _should_serve(self):
         return True
 
-    def _call_wsgi_app(self, m2message, send_sock):
+    def _call_wsgi_app(self, m2message):
+        start_response = StartResponse(m2message, self)
         environ = self._create_wsgi_environ(m2message.headers, m2message.body)
         upload_path = conf.settings.mongrel2_chroot or '/'
 
@@ -165,10 +298,6 @@ class Wsgid(object):
             upload_path = os.path.join(upload_path, *parts)
             environ['wsgi.input'] = open(upload_path)
 
-        start_response = StartResponse()
-
-        server_id = m2message.server_id
-        client_id = m2message.client_id
         response = None
         try:
             body = ''
@@ -179,24 +308,29 @@ class Wsgid(object):
             response = self.app(environ, start_response)
             self.log.debug("WSGI app finished running... status={0}, headers={1}".format(start_response.status, start_response.headers))
 
-            if start_response.body_written:
-                body = start_response.body
-            else:
-                for data in response:
-                    body += data
+            if response is None:
+                return start_response.finish()
+            
+            if (not start_response.headers_sent and not start_response.has_content_length):
+                #try to guess content-length. Works if the result from the app is [body]
+                try:
+                    n = len(response)
+                except TypeError:
+                    pass
+                else:
+                    if n == 1:
+                        data = iter(response).next()
+                        start_response.headers.append(('Content-Length', str(len(data))))
+                        start_response.write(data)
+                        return start_response.finish()
+            for data in response:
+                start_response.write(data)
+            return start_response.finish()
 
-            status = start_response.status
-            headers = start_response.headers
-
-            self.log.debug("Calling PostRequest filters...")
-            (status, headers, body) = self._run_post_filters(IPostRequestFilter.implementors(), self._filter_process_callback, m2message, status, headers, body)
-
-            self.log.debug("Returning to mongrel2")
-            send_sock.send(str(self._reply(server_id, client_id, status, headers, body)))
         except Exception, e:
             # Internal Server Error
             self._run_simple_filters(IPostRequestFilter.implementors(), self._filter_exception_callback, m2message, e)
-            send_sock.send(self._reply(server_id, client_id, '500 Internal Server Error', headers=[]))
+            start_response.error('500 Internal Server Error')
             self.log.exception(e)
         finally:
             if hasattr(response, 'close'):
@@ -209,22 +343,6 @@ class Wsgid(object):
 
     def _filter_process_callback(self, f, *args):
         return f.process(*args)
-
-    '''
-     Run post request filters
-     This method is separated because the post request filter should return a value that will
-     be passed to the next filter in the execution chain
-    '''
-    def _run_post_filters(self, filters, callback, m2message, *filter_args):
-        status, headers, body = filter_args
-        for f in filters:
-            try:
-                self.log.debug("Calling {0} filter".format(f.__class__.__name__))
-                status, headers, body = callback(f, m2message, status, headers, body)
-            except Exception as e:
-                from wsgid.core import log
-                log.exception(e)
-        return (status, headers, body)
 
     '''
      Run pre request filters
@@ -244,29 +362,29 @@ class Wsgid(object):
         except OSError, o:
             self.log.exception(o)
 
-    def _reply(self, uuid, conn_id, status, headers=[], body=''):
-        '''
-        Constructs a mongrel2 response message based on the
-        WSGI app response values.
-        @uuid, @conn_id comes from Wsgid itself
-        @headers, @body comes from the executed application
+    def _reply(self, message,  status, headers, body):
+        conn_id = message.client_id
+        uuid = message.server_id
 
-        @body is the raw content of the response and not [body]
-        as returned by the WSGI app
-        @headers is a list of tuples
-        '''
-        RAW_HTTP = "HTTP/1.1 %(status)s\r\n%(headers)s\r\n%(body)s"
-        msg = "%s %d:%s, " % (uuid, len(conn_id), conn_id)
-        params = {'status': status, 'body': body}
-
-        headers += [('Content-Length', len(body))]
-        raw_headers = ""
-        for h, v in headers:
-            if not h.lower() == x_wsgid_header_name:
-                raw_headers += "%s: %s\r\n" % (h, v)
-
-        params['headers'] = raw_headers + X_WSGID_HEADER
-        return msg + RAW_HTTP % params
+        body_list = [uuid, " ", str(len(conn_id)), ":", conn_id, ", "] 
+        if status:
+            body_list.append("HTTP/1.1 ") 
+            body_list.append(status)
+            body_list.append("\r\n")
+        if headers:
+            body_list.extend( ("%s: %s\r\n" % items for items in headers ) )
+            body_list.append("\r\n")
+        body_list.append(body)
+        self.log.debug("Returning to mongrel2")
+        data = "".join(body_list)
+        self.log.debug("Data: (%d) %s", len(data), data)
+        try:
+            self.send_sock.send(data, flags = zmq.NOBLOCK )
+        except zmq.EAGAIN:
+            #eat or propogate?
+            log.warn("Discarding response to {} due to full send queue".format((uuid,)))
+            return False
+        return True    
 
     def _create_wsgi_environ(self, json_headers, body=None):
         '''

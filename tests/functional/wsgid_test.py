@@ -5,7 +5,12 @@ from wsgid.core import Wsgid
 from wsgid.test import FakeOptions
 import wsgid.conf
 import urllib2
+import time
 import logging
+logging.basicConfig(level=logging.DEBUG)
+import multiprocessing
+logger = multiprocessing.log_to_stderr()
+logger.setLevel(multiprocessing.SUBDEBUG)
 
 class WsgidServeTest(unittest.TestCase):
 
@@ -93,14 +98,18 @@ class WsgidServeTest(unittest.TestCase):
 
     def _run_wsgid(self, app):
         def _serve(app):
+            import multiprocessing
             w = Wsgid(app,
                 'tcp://127.0.0.1:8889',
                 'tcp://127.0.0.1:8890')
-            w.log = logging
+            w.log = multiprocessing.get_logger()
+            w.log.setLevel(logging.DEBUG)
             w.serve()
         import multiprocessing
         p = multiprocessing.Process(target=_serve, args=(app,))
+
         p.start()
+        time.sleep(1)
         return p.pid
 
     def _kill_wsgid(self, pid):
