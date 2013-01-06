@@ -5,7 +5,8 @@ Changelog
 Version -next
 *************
 
- * Adds support for mongrel2 URL_SCHEME headers, now wsgi.url_scheme is correctly filled. Depends on mongrel2 greater than 1.8.0
+ * Adds support for mongrel2 URL_SCHEME headers, now wsgi.url_scheme is correctly filled. Depends on mongrel2 greater than 1.8.0;
+ * Merged branch steamraven/unbiffered-response. Wsgid no longer buffers the complete WSGI App response body, now it streams it in parts if necessary. Thanks to Matthew Hawn (https://github.com/steamraven);
 
 
 Version 0.7.0
