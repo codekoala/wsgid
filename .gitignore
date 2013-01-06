@@ -31,3 +31,5 @@ pip-log.txt
 tests/unit/app-path/logs/
 tests/unit/fixtures/
 
+.ropeproject/
+
