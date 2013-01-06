@@ -174,7 +174,7 @@ class StartResponse(object):
         status, headers, write, finish = self.status, self.headers, self._reply, self._finish
         for f in filters:
             try:
-                self.log.debug("Calling %s filter".format(f.__class__.__name__))
+                self.log.debug("Calling {0} filter".format(f.__class__.__name__))
                 status, headers, write, finish = f.process(self.message, status, headers, write, finish)
             except Exception as e:
                 from wsgid.core import log
