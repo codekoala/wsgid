@@ -381,7 +381,7 @@ class WsgidReplyTest(unittest.TestCase):
     self.sample_uuid = 'bb3ce668-4528-11e0-94e3-001fe149503a'
     self.sample_conn_id = '42'
     self.message = Message('%s %s / 22:{"VERSION":"HTTP/1.0"},0:,' % (self.sample_uuid, self.sample_conn_id))
-    
+
 
   def test_reply(self):
     wsgid = Wsgid()
@@ -419,7 +419,7 @@ class WsgidContentLengthTest(unittest.TestCase):
           patch.object(wsgid, "_create_wsgi_environ") :
         wsgid._call_wsgi_app(self.message)
         headers = reply.call_args_list[0][0][2]
-        self.assertEquals(headers, [('Content-Length', '5'), ('X-Wsgid', __version__),  ('Date', ANY) ])  
+        self.assertEquals(headers, [('Content-Length', '5'), ('X-Wsgid', __version__),  ('Date', ANY) ])
   def test_no_cotent_length(self):
     def app(env, start):
         start("200 OK", [])
@@ -432,8 +432,8 @@ class WsgidContentLengthTest(unittest.TestCase):
           patch.object(wsgid, "_create_wsgi_environ") :
         wsgid._call_wsgi_app(self.message)
         headers = reply.call_args_list[0][0][2]
- 
-        self.assertEquals(headers, [('X-Wsgid', __version__), ('Date', ANY)])  
+
+        self.assertEquals(headers, [('X-Wsgid', __version__), ('Date', ANY)])
 
 
 class AlmostAlwaysTrue(object):
@@ -618,9 +618,9 @@ class WsgidRequestFiltersTest(unittest.TestCase):
             environ_mock.return_value = self.sample_headers.copy()
             wsgid.serve()
             assert 1 == app_mock.call_count
-            headers =  [('X-Wsgid', '0.7.0'), ('Date',ANY), ('X-Post-Header', 'Value')]
+            headers =  [('X-Wsgid', __version__), ('Date',ANY), ('X-Post-Header', 'Value')]
             self.assertEqual( [call(ANY, '200 OK from filter', headers, 'Line1'),
-                              call(ANY, None, None, 'Line2'), ANY], 
+                              call(ANY, None, None, 'Line2'), ANY],
                          reply_mock.call_args_list)
 
     def test_call_post_request_exception(self):
@@ -674,7 +674,7 @@ class WsgidRequestFiltersTest(unittest.TestCase):
             environ_mock.return_value = self.sample_headers.copy()
             wsgid.serve()
             assert 1 == app_mock.call_count
-            self.assertEquals( [call(ANY, '', [('X-Wsgid', '0.7.0'), ('Date', ANY)], 'Line1'),
+            self.assertEquals( [call(ANY, '', [('X-Wsgid', __version__), ('Date', ANY)], 'Line1'),
                                 call(ANY, None, None, 'Line2'),
                                 call(ANY, None, None, 'FAFB'), ANY], reply_mock.call_args_list)
 
@@ -712,6 +712,6 @@ class WsgidRequestFiltersTest(unittest.TestCase):
             environ_mock.return_value = self.sample_headers.copy()
             wsgid.serve()
             assert 1 == app_mock.call_count
-            self.assertEqual( [call(ANY, '', [('X-Wsgid', '0.7.0'), ('Date', ANY)], 'Line1'),
+            self.assertEqual( [call(ANY, '', [('X-Wsgid', __version__), ('Date', ANY)], 'Line1'),
                                call(ANY, None, None, 'Line2'),
                                call(ANY, None, None, 'FA'), ANY] , reply_mock.call_args_list)
