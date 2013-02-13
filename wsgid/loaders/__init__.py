@@ -7,6 +7,9 @@ import sys
 
 
 class IAppLoader(plugnplay.Interface):
+    """
+    Main interface for implementing an additional WSGI app loader
+    """
 
     def can_load(self, app_path):
         '''
