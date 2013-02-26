@@ -63,9 +63,7 @@ class Cli(object):
                 signal.signal(signal.SIGTERM, self._sigterm_handler)
                 self._wait_workers()
         except Exception:
-            import traceback
-            exc = sys.exc_info()
-            self.log.info("".join(traceback.format_exception(exc[0], exc[1], exc[2])))
+            self.log.exception('CLI Error')
             self._remove_pid(os.getpid(), self.MASTER)
             sys.exit(1)
 
@@ -101,7 +99,7 @@ class Cli(object):
 
     def _mkdir_if_not_exist(self, path):
         if not os.path.exists(path):
-            os.mkdir(path, 0700)
+            os.mkdir(path, 0o700)
 
     def _sigterm_handler(self, sig, stack):
         '''

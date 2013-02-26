@@ -27,6 +27,14 @@ Plugin = plugnplay.Plugin
 log = logging.getLogger('wsgid')
 
 
+if sys.version_info >= (3, 0, 0):
+    def _raise(*exc_info):
+        raise exc_info[0](exc_info[1]).with_exception(exc_info[2])
+else:
+    # wish I knew of a cleaner way to not product a SyntaxError in Python 3
+    eval(compile('def _raise(*exc): raise exc[0], exc[1], exc[2]'))
+
+
 class StartResponse(object):
     # __slots__
 
@@ -41,24 +49,23 @@ class StartResponse(object):
         self._filtered_finish = self._finish
         self._filtered_write = self._reply
         self.chunked = False
-        
 
         if self.version == 'HTTP/1.1':
-            self.should_close = ( message.headers.get('connection','').lower() == 'close')
+            self.should_close = (message.headers.get('connection','').lower() == 'close')
         else:
             self.should_close = (message.headers.get('connection','').lower() != 'keep-alive')
-        
+
         server.log.debug("Should close: %s", self.should_close)
 
-    def __call__(self, status, response_headers, exec_info=None):
-        if self.called and not exec_info:
+    def __call__(self, status, response_headers, exc_info=None):
+        if self.called and not exc_info:
             raise StartResponseCalledTwice()
 
-        if exec_info and self.headers_sent:
+        if exc_info and self.headers_sent:
             try:
-                raise exec_info[0], exec_info[1], exec_info[2]
+                _raise(exc_info[0], exc_info[1], exc_info[2])
             finally:
-                exec_info = None  # Avoid circular reference (PEP-333)
+                exc_info = None  # Avoid circular reference (PEP-333)
 
         self.headers = response_headers
         self.status = status
@@ -92,7 +99,7 @@ class StartResponse(object):
         if trailer:
             self._reply_internal(trailer)
 
-        if self.chunked or not self.headers_sent:    
+        if self.chunked or not self.headers_sent:
             self._reply_internal("")
 
 
@@ -100,7 +107,7 @@ class StartResponse(object):
             self.close()
 
     def close(self):
-        self.chunked = False 
+        self.chunked = False
         self._reply_internal("")
 
     def write(self, body):
@@ -131,7 +138,7 @@ class StartResponse(object):
                 if not self.should_close:
                     self.headers.append(('Connection','Keep-Alive'))
         else:
-            #should set should_close to the value of 'connection' in headers            
+            #should set should_close to the value of 'connection' in headers
             pass
 
 
@@ -310,7 +317,7 @@ class Wsgid(object):
 
             if response is None:
                 return start_response.finish()
-            
+
             if (not start_response.headers_sent and not start_response.has_content_length):
                 #try to guess content-length. Works if the result from the app is [body]
                 try:
@@ -327,11 +334,14 @@ class Wsgid(object):
                 start_response.write(data)
             return start_response.finish()
 
-        except Exception, e:
+        except Exception:
             # Internal Server Error
-            self._run_simple_filters(IPostRequestFilter.implementors(), self._filter_exception_callback, m2message, e)
+            e = sys.exc_info()
+            self._run_simple_filters(IPostRequestFilter.implementors(),
+                                     self._filter_exception_callback,
+                                     m2message, e)
             start_response.error('500 Internal Server Error')
-            self.log.exception(e)
+            self.log.exception("Internal server error")
         finally:
             if hasattr(response, 'close'):
                 response.close()
@@ -359,16 +369,16 @@ class Wsgid(object):
     def _remove_tmp_file(self, filepath):
         try:
             os.unlink(filepath)
-        except OSError, o:
-            self.log.exception(o)
+        except OSError:
+            self.log.exception("Error removing tmp file")
 
     def _reply(self, message,  status, headers, body):
         conn_id = message.client_id
         uuid = message.server_id
 
-        body_list = [uuid, " ", str(len(conn_id)), ":", conn_id, ", "] 
+        body_list = [uuid, " ", str(len(conn_id)), ":", conn_id, ", "]
         if status:
-            body_list.append("HTTP/1.1 ") 
+            body_list.append("HTTP/1.1 ")
             body_list.append(status)
             body_list.append("\r\n")
         if headers:
@@ -384,7 +394,7 @@ class Wsgid(object):
             #eat or propogate?
             log.warn("Discarding response to {} due to full send queue".format((uuid,)))
             return False
-        return True    
+        return True
 
     def _create_wsgi_environ(self, json_headers, body=None):
         '''
