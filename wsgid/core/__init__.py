@@ -1,27 +1,28 @@
 #encoding: utf-8
 
-__all__ = ['StartResponse', 'StartResponseCalledTwice', 'Plugin', 'run_command', 'validate_input_params', 'Wsgid']
+__all__ = ['StartResponse', 'StartResponseCalledTwice', 'Plugin',
+           'run_command', 'validate_input_params', 'Wsgid']
 
-import sys
-import logging
-import plugnplay
-from command import ICommand
-import parser
-import re
-import os
-from wsgid import __version__
-from wsgid import conf
-from wsgid.interfaces.filters import IPreRequestFilter, IPostRequestFilter
 from cStringIO import StringIO
-import urllib
-from message import Message
-import zmq
 from glob import glob
+import logging
+import os
+import re
+import sys
+import urllib
 
+import plugnplay
+import zmq
 
-from wsgiref.handlers import format_date_time
 from datetime import datetime
 from time import mktime
+from wsgiref.handlers import format_date_time
+
+from wsgid import conf, __version__
+from wsgid.core import parser
+from wsgid.core.command import ICommand
+from wsgid.core.message import Message
+from wsgid.interfaces.filters import IPreRequestFilter, IPostRequestFilter
 
 Plugin = plugnplay.Plugin
 log = logging.getLogger('wsgid')
@@ -36,7 +37,6 @@ else:
 
 
 class StartResponse(object):
-    # __slots__
 
     def __init__(self, message, server):
         self.headers = []
@@ -45,15 +45,18 @@ class StartResponse(object):
         self.headers_sent = False
         self.message = message
         self.server = server
-        self.version = message.headers['VERSION'] #this may go away once the environ is built
+
+        # this may go away once the environ is built
+        self.version = message.headers['VERSION']
         self._filtered_finish = self._finish
         self._filtered_write = self._reply
         self.chunked = False
 
+        _c = message.headers.get('connection', '').lower()
         if self.version == 'HTTP/1.1':
-            self.should_close = (message.headers.get('connection','').lower() == 'close')
+            self.should_close = (_c == 'close')
         else:
-            self.should_close = (message.headers.get('connection','').lower() != 'keep-alive')
+            self.should_close = (_c != 'keep-alive')
 
         server.log.debug("Should close: %s", self.should_close)
 
