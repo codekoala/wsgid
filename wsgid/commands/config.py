@@ -1,8 +1,13 @@
+import os
+
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
 from wsgid.core import Plugin, validate_input_params
 from wsgid.core.command import ICommand
 from wsgid.core.parser import CommandLineOption, BOOL
-import os
-import simplejson
 
 
 class CommandConfig(Plugin):
@@ -21,7 +26,7 @@ class CommandConfig(Plugin):
         s = f.read()
         cfg_values = {}
         if s:
-            cfg_values = simplejson.loads(s)
+            cfg_values = json.loads(s)
 
         # Copy the values
         self._override_if_not_none('wsgi_app', cfg_values, options.wsgi_app)
@@ -44,7 +49,7 @@ class CommandConfig(Plugin):
         # Rewrite the config file
         f.seek(0)
         f.truncate()
-        simplejson.dump(cfg_values, f, indent="  ")
+        json.dump(cfg_values, f, indent="  ")
         f.close()
 
     def extra_options(self):

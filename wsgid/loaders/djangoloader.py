@@ -1,14 +1,14 @@
-from wsgid.loaders import IAppLoader
-from wsgid.core import Plugin, log
-import wsgid.conf
-try:
-    from django.conf import settings
-except ImportError:
-    pass  # Without django its unlikely anyone intends on using the DjangoAppLoader
-
 import os
 import sys
-import simplejson
+
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
+from wsgid.loaders.default import IAppLoader
+from wsgid.core import Plugin, log
+import wsgid.conf
 
 
 class DjangoAppLoader(Plugin):
@@ -39,7 +39,7 @@ class DjangoAppLoader(Plugin):
         log.debug("Reading {0}".format(conf_file))
         if os.path.exists(conf_file):
             try:
-                parsed = simplejson.load(open(conf_file))
+                parsed = json.load(open(conf_file))
             except:
                 log.exception("Error parsing {file}".format(file=conf_file))
         return parsed
@@ -62,6 +62,11 @@ class DjangoAppLoader(Plugin):
         sys.path.append(app_path)
         logger.debug("Adding {0} to sys.path".format(new_syspath))
         sys.path.append(new_syspath)
+
+        try:
+            from django.conf import settings
+        except ImportError:
+            log.exception('Failed to import Django project settings')
 
         # Here we force django to load the app settings
         settings._some_value = True

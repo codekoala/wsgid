@@ -16,7 +16,11 @@ TYPES = {INT: int,
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(prog=__progname__, description=__description__, version=__version__, conflict_handler='resolve')
+    parser = argparse.ArgumentParser(
+        prog=__progname__,
+        description=__description__,
+        conflict_handler='resolve'
+    )
     commands = ICommand.implementors()
     for command in commands:
         name = command.command_name()
@@ -61,9 +65,11 @@ class CommandLineOption(object):
         return "{name}".format(name=self.name)
 
 
-def add_option(name=None, shortname=None, help=None, type=None, dest=None, default_value=None, namespace='core'):
+def add_option(name=None, shortname=None, help=None, type=None, dest=None,
+               default_value=None, namespace='core'):
     if name:
-        return CommandLineOption(name, shortname, help, type, dest, default_value)
+        return CommandLineOption(name, shortname, help, type, dest,
+                                 default_value)
 
 
 def _create_core_options():
