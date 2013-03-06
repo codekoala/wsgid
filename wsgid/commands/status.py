@@ -28,7 +28,7 @@ class CommandStatus(Plugin):
         '''
         Return True if at least one of the passed pids is running
         '''
-        return len(filter(self._pid_exists, pids)) > 0
+        return len(list(filter(self._pid_exists, pids))) > 0
 
     def _pid_exists(self, pid):
         '''

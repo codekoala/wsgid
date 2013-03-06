@@ -1,16 +1,23 @@
 #encoding: utf-8
 
+import logging
+import multiprocessing
+import time
 import unittest
+
 from wsgid.core import Wsgid
 from wsgid.test import FakeOptions
 import wsgid.conf
-import urllib2
-import time
-import logging
+
+try:
+    from urllib2 import urlopen
+except ImportError:
+    from urllib.request import urlopen
+
 logging.basicConfig(level=logging.DEBUG)
-import multiprocessing
 logger = multiprocessing.log_to_stderr()
 logger.setLevel(multiprocessing.SUBDEBUG)
+
 
 class WsgidServeTest(unittest.TestCase):
 
@@ -23,7 +30,7 @@ class WsgidServeTest(unittest.TestCase):
             return ['Body content']
         pid = self._run_wsgid(app)
         try:
-            r = urllib2.urlopen('http://127.0.0.1:8888/py/abc/')
+            r = urlopen('http://127.0.0.1:8888/py/abc/')
             body = r.read()
             self.assertEquals(body, 'Body content')
         finally:
@@ -39,7 +46,7 @@ class WsgidServeTest(unittest.TestCase):
             return ['More Lines\n', 'And more...\n']
         pid = self._run_wsgid(app)
         try:
-            r = urllib2.urlopen('http://127.0.0.1:8888/py/abc/')
+            r = urlopen('http://127.0.0.1:8888/py/abc/')
             self.assertEquals('More Lines\nAnd more...\n', r.read())
         finally:
             self._kill_wsgid(pid)
@@ -52,15 +59,16 @@ class WsgidServeTest(unittest.TestCase):
             return None
         pid = self._run_wsgid(app)
         try:
-            r = urllib2.urlopen('http://127.0.0.1:8888/py/abc/')
+            r = urlopen('http://127.0.0.1:8888/py/abc/')
             self.assertEquals('One Line\nTwo Lines\n', r.read())
         finally:
             self._kill_wsgid(pid)
 
     def test_app_return_an_iterable(self):
         '''
-            Instead of returnin a list, a app can return an object that is iterable
+        Instead of returnin a list, a app can return an object that is iterable
         '''
+
         def app(environ, start_response):
             class Body(object):
                 def __init__(self, parts):
@@ -75,7 +83,7 @@ class WsgidServeTest(unittest.TestCase):
 
         pid = self._run_wsgid(app)
         try:
-            r = urllib2.urlopen('http://127.0.0.1:8888/py/abc/')
+            r = urlopen('http://127.0.0.1:8888/py/abc/')
             self.assertEquals('Line One\nLine Two\n', r.read())
         finally:
             self._kill_wsgid(pid)
@@ -91,7 +99,7 @@ class WsgidServeTest(unittest.TestCase):
 
         pid = self._run_wsgid(app)
         try:
-            r = urllib2.urlopen('http://127.0.0.1:8888/py/post', data='Some post data')
+            r = urlopen('http://127.0.0.1:8888/py/post', data='Some post data')
             self.assertEquals('Some post data', r.read())
         finally:
             self._kill_wsgid(pid)
@@ -99,9 +107,7 @@ class WsgidServeTest(unittest.TestCase):
     def _run_wsgid(self, app):
         def _serve(app):
             import multiprocessing
-            w = Wsgid(app,
-                'tcp://127.0.0.1:8889',
-                'tcp://127.0.0.1:8890')
+            w = Wsgid(app, 'tcp://127.0.0.1:8889', 'tcp://127.0.0.1:8890')
             w.log = multiprocessing.get_logger()
             w.log.setLevel(logging.DEBUG)
             w.serve()

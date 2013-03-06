@@ -7,7 +7,7 @@ import os
 from . import run_command, validate_input_params, log
 import wsgid
 from ..commands import *
-import parser
+from . import parser
 
 import plugnplay
 import daemon
@@ -19,7 +19,7 @@ class Cli(object):
     '''
 
     # PID types we may create
-    MASTER, WORKER = range(2)
+    MASTER, WORKER = list(range(2))
 
     def __init__(self):
         self.log = log
@@ -202,7 +202,7 @@ class Cli(object):
 
         # Create the env vars
         if options.envs:
-            for k, v in options.envs.iteritems():
+            for k, v in options.envs.items():
                 os.environ[k] = v
 
         # The app source-code is inside an "app" folder, so we join this part

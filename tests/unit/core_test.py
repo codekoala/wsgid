@@ -26,5 +26,5 @@ class CoreTest(unittest.TestCase):
 
       self.assertTrue(found_implementor, "Did not find any ICommand implementing stop command")
       self.assertTrue(mock_command.run.called, "ManageCommand.run() not called")
-      print mock_command.run.call_args
+      print(mock_command.run.call_args)
       self.assertEquals({'command_name': 'stop'}, mock_command.run.call_args[1])

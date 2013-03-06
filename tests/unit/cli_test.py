@@ -76,7 +76,7 @@ class CliTest(unittest.TestCase):
         We shoud not chroot if --chroot is not passed.
         '''
         opt = self._parse('--app-path=./')
-        self.assertFalse(opt.has_key('chroot_directory'))
+        self.assertFalse('chroot_directory' in opt)
 
     def test_drop_priv(self):
         '''

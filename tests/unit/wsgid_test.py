@@ -90,7 +90,7 @@ class WsgidTest(unittest.TestCase):
   '''
   def test_environ_request_method(self):
     environ = self.wsgid._create_wsgi_environ(self.sample_headers)
-    self.assertTrue(environ.has_key('REQUEST_METHOD'))
+    self.assertTrue('REQUEST_METHOD' in environ)
     self.assertEquals('GET', environ['REQUEST_METHOD'])
 
 
@@ -158,7 +158,7 @@ class WsgidTest(unittest.TestCase):
   '''
   def test_environ_server_protocol(self):
     environ = self.wsgid._create_wsgi_environ(self.sample_headers)
-    self.assertTrue(environ.has_key('SERVER_PROTOCOL'))
+    self.assertTrue('SERVER_PROTOCOL' in environ)
     self.assertEquals('HTTP/1.1', environ['SERVER_PROTOCOL'])
 
 

@@ -76,10 +76,10 @@ class PyRoutesLoader(Plugin):
 
         # A normal pyroutes application should have only 3 folders: templates/ tests/ <app-name>/
         # Here we do: "import <app-name>"
-        app_dir = filter(lambda d: d not in ('templates', 'tests'), dirs)
+        app_dir = [d for d in dirs if d not in ('templates', 'tests')]
         __import__(app_dir[0])  # This should import all @routes from the app
         __import__(app_dir[0], fromlist='pyroutes_settings')
         import pyroutes
         return pyroutes.application
 
-import djangoloader
+from . import djangoloader

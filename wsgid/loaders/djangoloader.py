@@ -68,13 +68,13 @@ class DjangoAppLoader(Plugin):
         # Clean up
         del settings._some_value
 
-        for k, v in extra.items():
+        for k, v in list(extra.items()):
             setting_value = None
             if hasattr(settings, k):
                 setting_value = getattr(settings, k)
 
             if isinstance(v, dict) and setting_value and isinstance(setting_value, dict):
-                for k2, v2 in v.items():
+                for k2, v2 in list(v.items()):
                     getattr(settings, k)[k2] = v2
             elif isinstance(v, list) and setting_value and isinstance(setting_value, list):
                 setting_value += v

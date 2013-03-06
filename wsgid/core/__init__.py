@@ -3,13 +3,17 @@
 __all__ = ['StartResponse', 'StartResponseCalledTwice', 'Plugin',
            'run_command', 'validate_input_params', 'Wsgid']
 
-from cStringIO import StringIO
 from glob import glob
+from io import StringIO
 import logging
 import os
 import re
 import sys
-import urllib
+
+try:
+    from urllib import unquote
+except ImportError:
+    from urllib.parse import unquote
 
 import plugnplay
 import zmq
@@ -329,7 +333,7 @@ class Wsgid(object):
                     pass
                 else:
                     if n == 1:
-                        data = iter(response).next()
+                        data = next(iter(response))
                         start_response.headers.append(('Content-Length', str(len(data))))
                         start_response.write(data)
                         return start_response.finish()
@@ -429,7 +433,7 @@ class Wsgid(object):
 
         script_name = environ['SCRIPT_NAME']
         path_info = json_headers.pop('PATH')[len(script_name):]
-        self._set(environ, 'PATH_INFO', urllib.unquote(path_info))
+        self._set(environ, 'PATH_INFO', unquote(path_info))
 
         server_port = '80'
         host_header = json_headers.pop('host')
@@ -451,7 +455,7 @@ class Wsgid(object):
         environ['content-length'] = environ['CONTENT_LENGTH']
 
         #Pass the other headers
-        for (header, value) in json_headers.iteritems():
+        for (header, value) in json_headers.items():
             if header[0] in ('X', 'x'):
                 environ[header] = str(value)
             else:

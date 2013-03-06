@@ -5,10 +5,10 @@ from .. import conf
 
 import os
 import argparse
-from command import ICommand
+from .command import ICommand
 
 
-BOOL, STRING, LIST, INT = range(4)
+BOOL, STRING, LIST, INT = list(range(4))
 TYPES = {INT: int,
          BOOL: bool,
          LIST: list,
