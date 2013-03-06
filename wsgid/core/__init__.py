@@ -34,7 +34,7 @@ log = logging.getLogger('wsgid')
 
 if sys.version_info >= (3, 0, 0):
     def _raise(*exc_info):
-        raise exc_info[0](exc_info[1]).with_exception(exc_info[2])
+        raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
 else:
     # wish I knew of a cleaner way to not product a SyntaxError in Python 3
     eval(compile('def _raise(*exc): raise exc[0], exc[1], exc[2]'))
@@ -341,9 +341,8 @@ class Wsgid(object):
                 start_response.write(data)
             return start_response.finish()
 
-        except Exception:
+        except Exception as e:
             # Internal Server Error
-            e = sys.exc_info()
             self._run_simple_filters(IPostRequestFilter.implementors(),
                                      self._filter_exception_callback,
                                      m2message, e)
