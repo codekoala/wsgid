@@ -1,14 +1,20 @@
 #encoding: utf-8
 
+from __future__ import unicode_literals
+
 __all__ = ['StartResponse', 'StartResponseCalledTwice', 'Plugin',
            'run_command', 'validate_input_params', 'Wsgid']
 
 from glob import glob
-from io import StringIO
 import logging
 import os
 import re
 import sys
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from io import StringIO
 
 try:
     from urllib import unquote
@@ -37,7 +43,8 @@ if sys.version_info >= (3, 0, 0):
         raise exc_info[0](exc_info[1]).with_traceback(exc_info[2])
 else:
     # wish I knew of a cleaner way to not product a SyntaxError in Python 3
-    eval(compile('def _raise(*exc): raise exc[0], exc[1], exc[2]'))
+    eval(compile('def _raise(*exc): raise exc[0], exc[1], exc[2]', '<py3fix>',
+                 'exec'))
 
 
 class StartResponse(object):
