@@ -20,6 +20,7 @@ class Message(object):
     '''
 
     def __init__(self, m2message):
+        m2message = m2message.decode()
         self.server_id, self.client_id, \
             self.path, self.netstring = m2message.split(' ', 3)
         len_headers, rest = self.netstring.split(':', 1)

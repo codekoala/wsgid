@@ -399,10 +399,17 @@ class Wsgid(object):
             body_list.append("\r\n")
         body_list.append(body)
         self.log.debug("Returning to mongrel2")
-        data = "".join(body_list)
+        body_list_bytes = []
+        for l in body_list:
+            try:
+                body_list_bytes.append(l.encode())
+            except AttributeError:
+                body_list_bytes.append(l)
+
+        data = b"".join(body_list_bytes)
         self.log.debug("Data: (%d) %s", len(data), data)
         try:
-            self.send_sock.send(data, flags = zmq.NOBLOCK )
+            self.send_sock.send_unicode(data.decode(), flags = zmq.NOBLOCK )
         except zmq.EAGAIN:
             #eat or propogate?
             log.warn("Discarding response to {} due to full send queue".format((uuid,)))
